@@ -4,10 +4,10 @@ apply plugin: "kotlin-kapt"
 apply plugin: "com.facebook.react"
 
 /**
- * React Native Gradle Plugin configuration.
+ * React Native Gradle Plugin configuration. Defaults are fine here.
  */
 react {
-    autolinkLibrariesWithApp()
+    // Folders, variants and bundling all use the React Native defaults.
 }
 
 def enableProguardInReleaseBuilds = true
@@ -91,3 +91,7 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// React Native 0.74 autolinking, app side.
+apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesAppBuildGradle(project)
