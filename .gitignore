@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnp/
+.pnp.js
+
+# Metro
+.metro-health-check*
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/debug.keystore
+android/app/*.hprof
+*.keystore
+*.jks
+*.iml
+.cxx/
+*.apk
+*.aab
+
+# TypeScript
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+
+# Logs
+*.log
