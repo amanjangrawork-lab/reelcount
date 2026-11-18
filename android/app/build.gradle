@@ -10,6 +10,20 @@ react {
     // Folders, variants and bundling all use the React Native defaults.
 }
 
+// Side-load signing identity.
+//
+// A fresh debug keystore is generated on every CI runner, which gives every
+// build a different signature: an update then refuses to install over the
+// previous one ("App not installed"). This key is committed — encoded as base64
+// text, because *.jks is git-ignored — so all side-load builds share one
+// identity and upgrades work. It is a DEVELOPMENT key: replace it with a real
+// release keystore before any Play Store distribution.
+def devKeystoreFile = file("reelcount-dev.jks")
+def devKeystoreBase64 = file("reelcount-dev.jks.base64")
+if (!devKeystoreFile.exists() && devKeystoreBase64.exists()) {
+    devKeystoreFile.bytes = Base64.decoder.decode(devKeystoreBase64.text.trim())
+}
+
 def enableProguardInReleaseBuilds = true
 def jscFlavor = 'org.webkit:android-jsc:+'
 
@@ -20,12 +34,21 @@ android {
 
     namespace "com.reelcount"
 
+    signingConfigs {
+        dev {
+            storeFile devKeystoreFile
+            storePassword "reelcountdev"
+            keyAlias "reelcount"
+            keyPassword "reelcountdev"
+        }
+    }
+
     defaultConfig {
         applicationId "com.reelcount"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "0.1.1"
+        versionCode 3
+        versionName "0.1.2"
         resourceConfigurations += ["en"]
     }
 
@@ -33,15 +56,15 @@ android {
         buildConfig true
     }
 
-    // Both build types use the default debug signing config, which AGP
-    // generates at ~/.android/debug.keystore on first build. Replace with a
-    // release keystore before distributing.
+    // Both variants use the committed side-load key when it is available, so a
+    // newer build installs over an older one. AGP's per-machine debug keystore is
+    // the fallback.
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            signingConfig devKeystoreFile.exists() ? signingConfigs.dev : signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.debug
+            signingConfig devKeystoreFile.exists() ? signingConfigs.dev : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"

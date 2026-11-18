@@ -22,6 +22,7 @@
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false"
         tools:targetApi="34">
 
         <activity
@@ -59,11 +60,16 @@
                 android:value="Keeps the reel counting accessibility service running so daily totals stay accurate." />
         </service>
 
+        <!--
+          BOOT_COMPLETED and MY_PACKAGE_REPLACED are protected broadcasts that only
+          the system may send, so the receiver does not need to be exported. Keeping
+          it internal stops any other app on the device from poking it.
+        -->
         <receiver
             android:name=".service.BootReceiver"
             android:directBootAware="false"
             android:enabled="true"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
