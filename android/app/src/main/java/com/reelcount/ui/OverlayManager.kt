@@ -86,7 +86,11 @@ class OverlayManager private constructor(context: Context) {
         onMain { hidePillInternal() }
     }
 
-    fun showBlocker(message: String, dismissLabel: String, onDismiss: () -> Unit) {
+    /**
+     * Shows the full-screen reminder. [onDismiss] is null when the current block
+     * must not be skipped (an all-day lock), in which case no button is added.
+     */
+    fun showBlocker(message: String, dismissLabel: String, onDismiss: (() -> Unit)?) {
         onMain {
             if (blocker != null) {
                 return@onMain
@@ -109,23 +113,6 @@ class OverlayManager private constructor(context: Context) {
                 gravity = Gravity.CENTER
             }
 
-            val button = TextView(appContext).apply {
-                text = dismissLabel
-                setTextColor(color(R.color.reelcount_blocker_button_text))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                gravity = Gravity.CENTER
-                isClickable = true
-                setPadding(dp(22), dp(14), dp(22), dp(14))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(28).toFloat()
-                    setColor(color(R.color.reelcount_accent))
-                }
-                setOnClickListener {
-                    onDismiss()
-                    hideBlocker()
-                }
-            }
-
             root.addView(
                 title,
                 LinearLayout.LayoutParams(
@@ -133,13 +120,33 @@ class OverlayManager private constructor(context: Context) {
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply { bottomMargin = dp(28) }
             )
-            root.addView(
-                button,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+
+            if (onDismiss != null) {
+                val button = TextView(appContext).apply {
+                    text = dismissLabel
+                    setTextColor(color(R.color.reelcount_blocker_button_text))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                    gravity = Gravity.CENTER
+                    isClickable = true
+                    setPadding(dp(22), dp(14), dp(22), dp(14))
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(28).toFloat()
+                        setColor(color(R.color.reelcount_accent))
+                    }
+                    setOnClickListener {
+                        onDismiss()
+                        hideBlocker()
+                    }
+                }
+
+                root.addView(
+                    button,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
                 )
-            )
+            }
 
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,

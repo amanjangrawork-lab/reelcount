@@ -33,6 +33,14 @@ class SettingsRepository private constructor(context: Context) {
     @Volatile
     private var cached: ReelCountSettings = readFromPrefs(prefs)
 
+    /**
+     * Set when a snapshot could not be mirrored to Room. [refreshFromDatabase]
+     * then pushes the in-memory snapshot instead of adopting the stale row, so a
+     * failed database write cannot silently revert a setting the user changed.
+     */
+    @Volatile
+    private var pendingDbWrite: Boolean = false
+
     fun current(): ReelCountSettings = cached
 
     fun updateLimit(limit: Int) {
@@ -71,6 +79,11 @@ class SettingsRepository private constructor(context: Context) {
 
     /** Reloads the snapshot from Room, called at startup and on service connect. */
     suspend fun refreshFromDatabase() = withContext(Dispatchers.IO) {
+        if (pendingDbWrite) {
+            pendingDbWrite = !mirrorToRoom(cached)
+            return@withContext
+        }
+
         val stored = ReelCountDatabase.get(appContext).settingsDao().get() ?: return@withContext
         val snapshot = ReelCountSettings(
             limit = ReelCountSettings.coerceLimit(stored.limit),
@@ -88,20 +101,27 @@ class SettingsRepository private constructor(context: Context) {
         persistToPrefs(snapshot)
 
         scope.launch {
-            try {
-                ReelCountDatabase.get(appContext).settingsDao().upsert(
-                    Settings(
-                        id = Settings.SINGLETON_ID,
-                        limit = snapshot.limit,
-                        blockEnabled = snapshot.blockEnabled,
-                        overlayEnabled = snapshot.overlayEnabled,
-                        allDayLockUntil = snapshot.allDayLockUntil,
-                        perAppTogglesJson = PerAppCounts.serializeToggles(snapshot.perAppEnabled)
-                    )
+            pendingDbWrite = !mirrorToRoom(snapshot)
+        }
+    }
+
+    /** Returns true when the snapshot reached Room. */
+    private suspend fun mirrorToRoom(snapshot: ReelCountSettings): Boolean {
+        return try {
+            ReelCountDatabase.get(appContext).settingsDao().upsert(
+                Settings(
+                    id = Settings.SINGLETON_ID,
+                    limit = snapshot.limit,
+                    blockEnabled = snapshot.blockEnabled,
+                    overlayEnabled = snapshot.overlayEnabled,
+                    allDayLockUntil = snapshot.allDayLockUntil,
+                    perAppTogglesJson = PerAppCounts.serializeToggles(snapshot.perAppEnabled)
                 )
-            } catch (error: Exception) {
-                Log.w(TAG, "Could not mirror settings to Room", error)
-            }
+            )
+            true
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not mirror settings to Room", error)
+            false
         }
     }
 

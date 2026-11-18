@@ -2,25 +2,34 @@ package com.reelcount.ui
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.util.Log
 import com.reelcount.R
 import com.reelcount.ReelCountEvents
+import com.reelcount.data.CountRepository
 import com.reelcount.data.SettingsRepository
+import com.reelcount.detect.BlockPolicy
 
 /**
  * Enforces the daily limit.
  *
  * Called from the accessibility service whenever a reel is visible or counted.
  * When the limit (or an all-day lock) is active the service is asked to press
- * Back and a full screen overlay is shown with a five minute dismissal.
+ * Back and a full screen overlay is shown. The five minute dismissal applies to
+ * a daily limit only; an all-day lock is not dismissible.
  */
 class ReelBlocker private constructor(context: Context) {
 
     private val appContext = context.applicationContext
     private val overlay = OverlayManager.get(appContext)
     private val settingsRepo = SettingsRepository.get(appContext)
+    private val countRepo = CountRepository.get(appContext)
 
     @Volatile
     private var lastTotal = 0
+
+    /** When [lastTotal] was last confirmed against the database. */
+    @Volatile
+    private var totalCheckedAt = 0L
 
     @Volatile
     private var blocked = false
@@ -46,8 +55,13 @@ class ReelBlocker private constructor(context: Context) {
     /**
      * Decides whether the current reel view has to be blocked. Safe to call on
      * every accessibility event; internally throttled.
+     *
+     * Suspending because the day's total is read from the database when the
+     * in-memory copy is stale: after a process restart (or at midnight) the
+     * counter starts at zero and a limit that was already reached would
+     * otherwise be ignored until the next reel was counted.
      */
-    fun evaluateBlock(service: AccessibilityService, pkg: String) {
+    suspend fun evaluateBlock(service: AccessibilityService, pkg: String) {
         val now = System.currentTimeMillis()
         if (now - lastEvaluateAt < EVALUATE_INTERVAL_MS) {
             return
@@ -55,22 +69,9 @@ class ReelBlocker private constructor(context: Context) {
         lastEvaluateAt = now
 
         val settings = settingsRepo.current()
+        val total = currentTotal(now)
 
-        if (!settings.isAppEnabled(pkg)) {
-            setBlocked(false)
-            return
-        }
-
-        val overLimit = settings.blockEnabled && lastTotal >= settings.limit
-        val locked = settings.isLockedNow(now)
-
-        if (!overLimit && !locked) {
-            setBlocked(false)
-            return
-        }
-
-        // "Dismiss for 5 min" grants a temporary pass, then blocking resumes.
-        if (now < dismissedUntil) {
+        if (!BlockPolicy.shouldBlock(settings, pkg, total, now, dismissedUntil)) {
             setBlocked(false)
             return
         }
@@ -82,11 +83,27 @@ class ReelBlocker private constructor(context: Context) {
             service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
         }
 
-        if (settings.overlayEnabled) {
-            overlay.showBlocker(
-                appContext.getString(R.string.overlay_limit_reached),
-                appContext.getString(R.string.overlay_dismiss)
-            ) { dismissForFiveMinutes() }
+        // The reminder is the enforcement, so it is shown whether or not the
+        // floating pill is switched on; the pill is only cosmetic.
+        val canDismiss = BlockPolicy.isDismissable(settings, now)
+        overlay.showBlocker(
+            appContext.getString(R.string.overlay_limit_reached),
+            appContext.getString(R.string.overlay_dismiss),
+            if (canDismiss) ::dismissForFiveMinutes else null
+        )
+    }
+
+    /** Today's total, refreshed from the database at most every [TOTAL_TTL_MS]. */
+    private suspend fun currentTotal(now: Long): Int {
+        if (now - totalCheckedAt < TOTAL_TTL_MS) {
+            return lastTotal
+        }
+        totalCheckedAt = now
+        return try {
+            countRepo.todayTotal().also { lastTotal = it }
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not read today's total", error)
+            lastTotal
         }
     }
 
@@ -111,6 +128,8 @@ class ReelBlocker private constructor(context: Context) {
     }
 
     companion object {
+        private const val TAG = "ReelBlocker"
+        private const val TOTAL_TTL_MS = 5_000L
         private const val EVALUATE_INTERVAL_MS = 1_500L
         private const val BACK_INTERVAL_MS = 1_500L
         private const val DISMISS_MS = 5 * 60 * 1000L
