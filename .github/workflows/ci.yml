@@ -7,7 +7,7 @@ on:
 jobs:
   javascript:
     name: TypeScript and ESLint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -26,11 +26,11 @@ jobs:
 
   ktlint:
     name: Kotlin formatting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -43,7 +43,7 @@ jobs:
 
   android:
     name: Debug APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -51,12 +51,21 @@ jobs:
         with:
           node-version: '20'
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # The runner image ships the SDK but leaves most package licences
+      # unaccepted, and Gradle refuses to resolve compileSdk 34 until they are.
+      - name: Accept Android SDK licences
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDKM="$(command -v sdkmanager || echo "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+          "$SDKM" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
 
       - uses: gradle/actions/setup-gradle@v3
         with:
