@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ReelCount</string>
+
+    <string name="accessibility_service_label">ReelCount reel counter</string>
+    <string name="accessibility_service_description">ReelCount watches for Reels and Shorts being opened so it can add one to today\'s count. It does not read text, passwords, messages or any other content. Nothing leaves your device.</string>
+    <string name="accessibility_service_summary">Counts Reels and Shorts views. No content is read.</string>
+
+    <string name="notification_channel_service_name">Counter service</string>
+    <string name="notification_channel_service_description">Shows today\'s reel count and keeps the counter running.</string>
+    <string name="notification_channel_blocker_name">Limit alerts</string>
+    <string name="notification_channel_blocker_description">Shows a notification when your daily limit is reached.</string>
+
+    <string name="notification_title">ReelCount</string>
+    <string name="notification_text">Today: %1$d reels</string>
+    <string name="notification_stop">Stop</string>
+
+    <string name="overlay_limit_reached">Limit reached. Switch to something else.</string>
+    <string name="overlay_dismiss">Dismiss for 5 min</string>
+    <string name="overlay_expanded_title">Today</string>
+</resources>
