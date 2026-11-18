@@ -53,6 +53,11 @@ object ReelDetector {
     fun isDwellSatisfied(visibleSince: Long, now: Long): Boolean =
         visibleSince > 0L && now - visibleSince >= MIN_VISIBLE_MS
 
-    /** Rule 3: [lastCountAt] is 0 for a view id that has never counted. */
-    fun isDebounceSatisfied(lastCountAt: Long, now: Long): Boolean = now - lastCountAt >= DEBOUNCE_MS
+    /**
+     * Rule 3: [lastCountAt] is 0 for a view id that has never counted. That case
+     * is allowed unconditionally: `now` is device uptime, so a reel watched in
+     * the first second after boot would otherwise be debounced against zero.
+     */
+    fun isDebounceSatisfied(lastCountAt: Long, now: Long): Boolean =
+        lastCountAt == 0L || now - lastCountAt >= DEBOUNCE_MS
 }
