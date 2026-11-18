@@ -29,7 +29,8 @@ unchanged.
   system-only.
 - The accessibility service no longer requests `flagRetrieveInteractiveWindows`,
   narrowing what it can see to the active window.
-- `usesCleartextTraffic` is explicitly disabled as defence in depth.
+- Release builds refuse cleartext HTTP (the platform default at targetSdk 34);
+  only the debug variant opts in, because Metro is served over plain HTTP.
 - Blocking rules moved to `detect/BlockPolicy.kt` as pure functions with unit
   tests.
 
