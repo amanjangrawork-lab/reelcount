@@ -3,6 +3,45 @@
 All notable changes to ReelCount are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-11-18
+
+Security and installability pass, plus four blocking bugs. Counting behaviour is
+unchanged.
+
+### Fixed
+
+- The full-screen reminder was tied to the floating-pill switch. Turning the pill
+  off silently disabled the only visible part of blocking. The reminder is now
+  shown whenever a block is active.
+- After a process restart (reboot, or Android reclaiming memory) the blocker read
+  its total from memory, which starts at zero, so a limit that was already
+  reached was ignored until the next reel was counted. The total is now read from
+  the database, cached for five seconds.
+- An all-day lock could be skipped with the five-minute dismissal, which defeated
+  the point of a lock. Locks are not dismissable; the limit still is.
+- A settings change whose Room write failed was reverted on the next launch,
+  because the stale database row overwrote the cache. The pending write is now
+  retried before the snapshot is reloaded.
+
+### Security
+
+- The boot receiver is no longer exported; the broadcasts it listens for are
+  system-only.
+- The accessibility service no longer requests `flagRetrieveInteractiveWindows`,
+  narrowing what it can see to the active window.
+- `usesCleartextTraffic` is explicitly disabled as defence in depth.
+- Blocking rules moved to `detect/BlockPolicy.kt` as pure functions with unit
+  tests.
+
+### Changed
+
+- Side-load builds are signed with a committed development key
+  (`android/app/reelcount-dev.jks.base64`). CI previously generated a fresh debug
+  keystore on every run, so every build had a different signature and an update
+  refused to install over the previous one.
+- Builds ship only `arm64-v8a` and `armeabi-v7a`, halving the APK download; the
+  x86 emulator ABIs were dead weight on a phone.
+
 ## [0.1.1] - 2026-11-18
 
 Correctness and pruning pass. No new features; the counting behaviour is
@@ -55,8 +94,8 @@ First public source release.
   1000 ms debounce per view id, 2000 ms dwell time, Stories excluded, foreground
   app only).
 - Room persistence: `daily_counts` (one row per day with a per-app JSON
-  breakdown) and a single-row `settings` table, plus an EncryptedSharedPreferences
-  mirror for synchronous reads on the accessibility path.
+  breakdown) and a single-row `settings` table, plus a SharedPreferences mirror
+  for synchronous reads on the accessibility path.
 - Foreground service with a persistent "Today: X reels" notification and a Stop
   action, restarted after reboot by `BootReceiver`.
 - Draggable floating counter pill with a tap-to-expand per-app breakdown that

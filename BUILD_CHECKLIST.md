@@ -39,6 +39,26 @@ cd android && ./gradlew assembleDebug
 5. Tap **Continue**, open Instagram Reels, scroll two reels, return: the counter
    and the notification should both have moved.
 
+## 3b. Install the APK from the CI artifact
+
+1. Open the **Actions** run on github.com in a **mobile browser** — the GitHub
+   mobile app cannot download artifacts.
+2. Scroll to **Artifacts** at the bottom and tap **reelcount-apks**.
+3. Unzip it (Files by Google, or ZArchiver) and install **`release/app-release.apk`**.
+   The debug APK needs Metro running on a computer, so it shows a red screen on
+   its own.
+4. Allow "install unknown apps" for the browser or files app when asked, and pass
+   the Play Protect warning with **More details → Install anyway**. The warning
+   appears because the app asks for the Accessibility permission and is not
+   distributed through Play; it is not a malware report.
+5. On Android 13+, Android blocks the Accessibility switch for sideloaded apps.
+   If the service will not turn on, open **Settings → Apps → ReelCount →** the ⋮
+   menu **→ Allow restricted settings**, then enable it again.
+6. Upgrading over an older ReelCount build: builds from before 0.1.2 each had a
+   different signature, so uninstall the old one first. From 0.1.2 on the
+   committed side-load key keeps the signature stable and upgrades install
+   normally.
+
 ## 4. Device quirks worth knowing
 
 - Some OEM skins (Xiaomi, Oppo, Samsung) kill background work. Add ReelCount to
@@ -50,8 +70,10 @@ cd android && ./gradlew assembleDebug
 
 ## 5. Before publishing your own build
 
-- Replace `signingConfigs.debug` in `android/app/build.gradle` with a real release
-  keystore; the release variant currently uses the debug key.
+- Replace the committed side-load key (`android/app/reelcount-dev.jks.base64`,
+  alias `reelcount`, password `reelcountdev`) with a real private release keystore
+  kept outside the repository. That key exists only so repeated CI builds share
+  one signature.
 - Bump `versionCode` and `versionName`.
 - Commit the Room schema that the first build writes to `android/app/schemas/`.
 - Capture screenshots and add them to the README if you want them there.
@@ -60,7 +82,8 @@ cd android && ./gradlew assembleDebug
 
 - `npx tsc --noEmit` and `npx eslint` (TypeScript, React Native preset).
 - ktlint 1.2.1 over all Kotlin sources.
-- `./gradlew testDebugUnitTest` — detection rules, settings logic, JSON helpers.
+- `./gradlew testDebugUnitTest` — detection rules, blocking policy, settings logic,
+  JSON helpers.
 - `./gradlew assembleDebug` and `./gradlew assembleRelease` — compilation,
   resource linking, manifest merging and the R8/ProGuard path.
 - Both APKs are uploaded as the `reelcount-apks` artifact.
