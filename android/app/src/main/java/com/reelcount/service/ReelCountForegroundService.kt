@@ -64,7 +64,7 @@ class ReelCountForegroundService : Service() {
     }
 
     private fun startForegroundCompat(total: Int) {
-        val notification = buildNotification(total)
+        val notification = buildNotification(this, total)
         try {
             ServiceCompat.startForeground(
                 this,
@@ -84,37 +84,6 @@ class ReelCountForegroundService : Service() {
         stopSelf()
     }
 
-    private fun buildNotification(total: Int): Notification {
-        val openApp = PendingIntent.getActivity(
-            this,
-            REQUEST_OPEN,
-            Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val stop = PendingIntent.getService(
-            this,
-            REQUEST_STOP,
-            Intent(this, ReelCountForegroundService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, NotificationChannels.CHANNEL_SERVICE)
-            .setSmallIcon(R.drawable.ic_stat_reelcount)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text, total))
-            .setContentIntent(openApp)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .addAction(0, getString(R.string.notification_stop), stop)
-            .build()
-    }
-
     companion object {
         private const val TAG = "ReelCountService"
         private const val NOTIFICATION_ID = 1001
@@ -128,8 +97,6 @@ class ReelCountForegroundService : Service() {
 
         @Volatile
         private var count: Int = 0
-
-        fun isRunning(): Boolean = running
 
         fun start(context: Context) {
             if (running) {
@@ -153,22 +120,48 @@ class ReelCountForegroundService : Service() {
             if (!running) {
                 return
             }
-            val notification = NotificationCompat.Builder(context, NotificationChannels.CHANNEL_SERVICE)
+            runCatching {
+                val manager = NotificationManagerCompat.from(context)
+                if (manager.areNotificationsEnabled()) {
+                    manager.notify(NOTIFICATION_ID, buildNotification(context, total))
+                }
+            }.onFailure { Log.w(TAG, "Could not update notification", it) }
+        }
+
+        /**
+         * The one notification builder. Both the initial foreground notification
+         * and every later update go through it, so the tap target and the Stop
+         * action cannot drift apart.
+         */
+        private fun buildNotification(context: Context, total: Int): Notification {
+            val openApp = PendingIntent.getActivity(
+                context,
+                REQUEST_OPEN,
+                Intent(context, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val stop = PendingIntent.getService(
+                context,
+                REQUEST_STOP,
+                Intent(context, ReelCountForegroundService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            return NotificationCompat.Builder(context, NotificationChannels.CHANNEL_SERVICE)
                 .setSmallIcon(R.drawable.ic_stat_reelcount)
                 .setContentTitle(context.getString(R.string.notification_title))
                 .setContentText(context.getString(R.string.notification_text, total))
+                .setContentIntent(openApp)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setShowWhen(false)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .addAction(0, context.getString(R.string.notification_stop), stop)
                 .build()
-
-            runCatching {
-                val manager = NotificationManagerCompat.from(context)
-                if (manager.areNotificationsEnabled()) {
-                    manager.notify(NOTIFICATION_ID, notification)
-                }
-            }.onFailure { Log.w(TAG, "Could not update notification", it) }
         }
     }
 }

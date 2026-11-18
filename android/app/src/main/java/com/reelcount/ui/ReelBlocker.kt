@@ -39,7 +39,7 @@ class ReelBlocker private constructor(context: Context) {
         lastTotal = total
         val settings = settingsRepo.current()
         if (settings.blockEnabled && settings.isAppEnabled(pkg) && total >= settings.limit) {
-            ReelCountEvents.limitReached(appContext, pkg, total)
+            ReelCountEvents.limitReached(pkg, total)
         }
     }
 
@@ -95,8 +95,6 @@ class ReelBlocker private constructor(context: Context) {
         setBlocked(false)
     }
 
-    fun isBlocked(): Boolean = blocked
-
     private fun setBlocked(value: Boolean) {
         if (blocked == value) {
             if (!value) {
@@ -109,7 +107,7 @@ class ReelBlocker private constructor(context: Context) {
         if (!value) {
             overlay.hideBlocker()
         }
-        ReelCountEvents.blockStateChanged(appContext, value)
+        ReelCountEvents.blockStateChanged(value)
     }
 
     companion object {

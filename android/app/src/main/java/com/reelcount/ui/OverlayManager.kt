@@ -1,7 +1,6 @@
 package com.reelcount.ui
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -14,6 +13,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import com.reelcount.R
 import com.reelcount.data.CountRepository
 import com.reelcount.data.SettingsRepository
 import com.reelcount.util.AccessibilityUtils
@@ -23,9 +24,8 @@ import kotlin.math.abs
 /**
  * Draws the floating counter pill and the limit overlay with WindowManager.
  *
- * Both windows use `WRAP_CONTENT` (pill) or are intentionally full screen
- * (blocker); the pill never intercepts touches outside its own bounds because
- * the window itself is only as large as the pill.
+ * Colours come from `res/values/colors.xml`; the pill window is only as large as
+ * the pill, so it never intercepts touches outside its own bounds.
  */
 class OverlayManager private constructor(context: Context) {
 
@@ -98,27 +98,27 @@ class OverlayManager private constructor(context: Context) {
             val root = LinearLayout(appContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setBackgroundColor(Color.parseColor("#F2111827"))
+                setBackgroundColor(color(R.color.reelcount_blocker_background))
                 setPadding(dp(28), dp(28), dp(28), dp(28))
             }
 
             val title = TextView(appContext).apply {
                 text = message
-                setTextColor(Color.WHITE)
+                setTextColor(color(R.color.reelcount_pill_text))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
                 gravity = Gravity.CENTER
             }
 
             val button = TextView(appContext).apply {
                 text = dismissLabel
-                setTextColor(Color.parseColor("#FF111827"))
+                setTextColor(color(R.color.reelcount_blocker_button_text))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                 gravity = Gravity.CENTER
                 isClickable = true
                 setPadding(dp(22), dp(14), dp(22), dp(14))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
-                    setColor(Color.parseColor("#FF22C55E"))
+                    setColor(color(R.color.reelcount_accent))
                 }
                 setOnClickListener {
                     onDismiss()
@@ -216,20 +216,20 @@ class OverlayManager private constructor(context: Context) {
             setPadding(dp(16), dp(9), dp(16), dp(9))
             background = GradientDrawable().apply {
                 cornerRadius = dp(24).toFloat()
-                setColor(Color.parseColor("#E6111827"))
-                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+                setColor(color(R.color.reelcount_pill))
+                setStroke(dp(1), color(R.color.reelcount_pill_border))
             }
             elevation = dp(6).toFloat()
         }
 
         titleView = TextView(appContext).apply {
-            setTextColor(Color.WHITE)
+            setTextColor(color(R.color.reelcount_pill_text))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
         }
 
         detailView = TextView(appContext).apply {
-            setTextColor(Color.parseColor("#B8FFFFFF"))
+            setTextColor(color(R.color.reelcount_pill_detail))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             gravity = Gravity.CENTER
             setPadding(0, dp(6), 0, 0)
@@ -281,6 +281,8 @@ class OverlayManager private constructor(context: Context) {
             handler.post(block)
         }
     }
+
+    private fun color(resId: Int): Int = ContextCompat.getColor(appContext, resId)
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP,

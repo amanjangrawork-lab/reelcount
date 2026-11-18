@@ -21,17 +21,9 @@ class CountRepository private constructor(context: Context) {
         dao.getByDay(TimeUtils.todayEpochDay())?.total ?: 0
     }
 
-    suspend fun todayRow(): DailyCount? = withContext(Dispatchers.IO) {
-        dao.getByDay(TimeUtils.todayEpochDay())
-    }
-
     suspend fun perAppCounts(): Map<String, Int> = withContext(Dispatchers.IO) {
         val row = dao.getByDay(TimeUtils.todayEpochDay())
         PerAppCounts.parse(row?.perAppJson)
-    }
-
-    suspend fun range(startDay: Long, endDay: Long): List<DailyCount> = withContext(Dispatchers.IO) {
-        dao.getRange(startDay, endDay)
     }
 
     suspend fun lastDays(days: Int): List<DailyCount> = withContext(Dispatchers.IO) {

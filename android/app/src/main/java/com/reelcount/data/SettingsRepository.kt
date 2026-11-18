@@ -3,8 +3,6 @@ package com.reelcount.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.reelcount.db.ReelCountDatabase
 import com.reelcount.db.Settings
 import com.reelcount.util.PerAppCounts
@@ -17,16 +15,19 @@ import kotlinx.coroutines.withContext
 /**
  * Single write path for settings.
  *
- * Room is the authoritative, documented store (the `settings` table). Because
- * the accessibility service reads settings on every scroll event, reads are
- * served from an EncryptedSharedPreferences mirror that is loaded once and
- * kept in memory. Every write updates the mirror, the in-memory cache and the
- * Room row together.
+ * Room is the authoritative, documented store (the `settings` table). The
+ * accessibility service needs the settings synchronously on every scroll event
+ * and must not touch disk there, so this repository keeps one in-memory
+ * snapshot and a small private SharedPreferences cache that survives process
+ * death. Writes update the snapshot and the cache immediately, and the Room row
+ * asynchronously; a failed Room write is logged rather than crashing a UI
+ * toggle, and the next app launch reloads the snapshot from Room.
  */
 class SettingsRepository private constructor(context: Context) {
 
     private val appContext = context.applicationContext
-    private val prefs: SharedPreferences = openPrefs(appContext)
+    private val prefs: SharedPreferences =
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
@@ -68,7 +69,7 @@ class SettingsRepository private constructor(context: Context) {
         }
     }
 
-    /** Reloads the mirror from Room, called once on startup. */
+    /** Reloads the snapshot from Room, called at startup and on service connect. */
     suspend fun refreshFromDatabase() = withContext(Dispatchers.IO) {
         val stored = ReelCountDatabase.get(appContext).settingsDao().get() ?: return@withContext
         val snapshot = ReelCountSettings(
@@ -79,12 +80,12 @@ class SettingsRepository private constructor(context: Context) {
             perAppEnabled = PerAppCounts.parseToggles(stored.perAppTogglesJson)
         )
         cached = snapshot
-        persistToPrefs(prefs, snapshot)
+        persistToPrefs(snapshot)
     }
 
     private fun write(snapshot: ReelCountSettings) {
         cached = snapshot
-        persistToPrefs(prefs, snapshot)
+        persistToPrefs(snapshot)
 
         scope.launch {
             try {
@@ -104,7 +105,7 @@ class SettingsRepository private constructor(context: Context) {
         }
     }
 
-    private fun persistToPrefs(prefs: SharedPreferences, snapshot: ReelCountSettings) {
+    private fun persistToPrefs(snapshot: ReelCountSettings) {
         prefs.edit()
             .putInt(KEY_LIMIT, snapshot.limit)
             .putBoolean(KEY_BLOCK_ENABLED, snapshot.blockEnabled)
@@ -128,8 +129,7 @@ class SettingsRepository private constructor(context: Context) {
 
     companion object {
         private const val TAG = "SettingsRepository"
-        private const val PREFS_NAME = "reelcount_settings_encrypted"
-        private const val FALLBACK_PREFS_NAME = "reelcount_settings"
+        private const val PREFS_NAME = "reelcount_settings"
 
         private const val KEY_LIMIT = "limit"
         private const val KEY_BLOCK_ENABLED = "block_enabled"
@@ -143,29 +143,6 @@ class SettingsRepository private constructor(context: Context) {
         fun get(context: Context): SettingsRepository {
             return instance ?: synchronized(this) {
                 instance ?: SettingsRepository(context).also { instance = it }
-            }
-        }
-
-        /**
-         * Encrypted preferences need a working keystore. On devices where the
-         * keystore is broken the mirror degrades to private, unencrypted
-         * preferences instead of crashing the app; Room stays authoritative.
-         */
-        private fun openPrefs(context: Context): SharedPreferences {
-            return try {
-                val masterKey = MasterKey.Builder(context)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build()
-                EncryptedSharedPreferences.create(
-                    context,
-                    PREFS_NAME,
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                )
-            } catch (error: Exception) {
-                Log.w(TAG, "Encrypted preferences unavailable, using private preferences", error)
-                context.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
             }
         }
     }

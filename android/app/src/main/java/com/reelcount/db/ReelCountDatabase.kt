@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [DailyCount::class, Settings::class],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class ReelCountDatabase : RoomDatabase() {
 

@@ -1,16 +1,14 @@
 package com.reelcount
 
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 
 /**
  * Fan-out point for counted reels.
  *
- * Every counted reel is delivered to (a) the React Native module through the
- * [emitter] lambda, and (b) an app-internal broadcast that other native
- * components (overlay, notification) can observe without holding a reference
- * to the accessibility service.
+ * Every event is delivered to the React Native module through the [emitter]
+ * lambda, which the module installs while the JS instance is alive. Native
+ * components are called directly by the accessibility service, so there is no
+ * broadcast channel here: one delivery path, not two.
  */
 object ReelCountEvents {
 
@@ -31,7 +29,7 @@ object ReelCountEvents {
         emitter = listener
     }
 
-    fun reelCounted(context: Context, pkg: String, total: Int, perApp: Map<String, Int>) {
+    fun reelCounted(pkg: String, total: Int, perApp: Map<String, Int>) {
         val payload = Bundle().apply {
             putString(EXTRA_PKG, pkg)
             putInt(EXTRA_TOTAL, total)
@@ -44,39 +42,28 @@ object ReelCountEvents {
                 }
             )
         }
-        emit(context, EVENT_REEL_COUNTED, payload)
+        emit(EVENT_REEL_COUNTED, payload)
     }
 
-    fun limitReached(context: Context, pkg: String, total: Int) {
+    fun limitReached(pkg: String, total: Int) {
         val payload = Bundle().apply {
             putString(EXTRA_PKG, pkg)
             putInt(EXTRA_TOTAL, total)
         }
-        emit(context, EVENT_LIMIT_REACHED, payload)
+        emit(EVENT_LIMIT_REACHED, payload)
     }
 
-    fun blockStateChanged(context: Context, blocked: Boolean) {
+    fun blockStateChanged(blocked: Boolean) {
         val payload = Bundle().apply { putBoolean(EXTRA_BLOCKED, blocked) }
-        emit(context, EVENT_BLOCK_STATE_CHANGED, payload)
+        emit(EVENT_BLOCK_STATE_CHANGED, payload)
     }
 
-    private fun emit(context: Context, name: String, payload: Bundle) {
-        emitter?.let { listener ->
-            try {
-                listener(name, payload)
-            } catch (ignored: Exception) {
-                // A dead React instance must never break counting.
-            }
-        }
-
-        val intent = Intent(name).apply {
-            setPackage(context.packageName)
-            putExtras(payload)
-        }
+    private fun emit(name: String, payload: Bundle) {
+        val listener = emitter ?: return
         try {
-            context.sendBroadcast(intent)
+            listener(name, payload)
         } catch (ignored: Exception) {
-            // Broadcast is a convenience channel, not a critical path.
+            // A dead React instance must never break counting.
         }
     }
 }

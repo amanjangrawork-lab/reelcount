@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.reelcount.ReelCountEvents
 import com.reelcount.data.CountRepository
 import com.reelcount.data.SettingsRepository
+import com.reelcount.detect.ReelDetector
 import com.reelcount.ui.OverlayManager
 import com.reelcount.ui.ReelBlocker
 import com.reelcount.util.PerAppCounts
@@ -25,13 +26,18 @@ import kotlinx.coroutines.launch
  *
  * The service only ever asks one question of the window tree: "is a known
  * reel container on screen?". It never reads text content, so passwords,
- * messages and posts are never captured.
+ * messages and posts are never captured. The decision rules themselves live in
+ * [ReelDetector] so they can be unit tested without a device.
  */
 class ReelCountAccessibilityService : AccessibilityService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** Package that currently owns the focused window. Rule 6. */
+    /**
+     * Package that currently owns the focused window, or null when the
+     * foreground app is not tracked. Rule 6 depends on this being cleared for
+     * every app that comes forward, not only for the tracked ones.
+     */
     @Volatile
     private var foregroundPackage: String? = null
 
@@ -43,13 +49,6 @@ class ReelCountAccessibilityService : AccessibilityService() {
 
     /** Last time each view id produced a count, for the 1 s debounce. */
     private val lastCountAt = HashMap<String, Long>()
-
-    private val viewIdsByPackage: Map<String, List<String>> = mapOf(
-        TrackedApps.INSTAGRAM to listOf("clips_viewer_view_pager", "reel_player_page_container"),
-        TrackedApps.YOUTUBE to listOf("reel_player_page_container", "shorts_player_container"),
-        TrackedApps.FACEBOOK to listOf("reel_player_page_container", "clips_viewer_view_pager"),
-        TrackedApps.SNAPCHAT to listOf("reel_player_page_container")
-    )
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -68,39 +67,40 @@ class ReelCountAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val target = event ?: return
         val pkg = target.packageName?.toString() ?: return
-        if (!TrackedApps.isTracked(pkg)) {
-            return
-        }
 
+        // Rule 6: whoever comes to the front owns the counter — including apps
+        // we do not track, which must clear the previous owner rather than
+        // leaving a stale package "foreground" while the user is elsewhere.
         if (target.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Rule 6: remember which tracked app is actually in front.
-            foregroundPackage = pkg
+            foregroundPackage = if (TrackedApps.isTracked(pkg)) pkg else null
             visibleReelViewId = null
             visibleSince = 0L
             return
         }
 
-        // Rule 6: ignore events for a tracked app that is not in the foreground.
-        if (foregroundPackage != pkg) {
+        if (foregroundPackage != pkg || !TrackedApps.isTracked(pkg)) {
             return
         }
 
-        val ids = viewIdsByPackage[pkg] ?: return
+        val ids = TrackedApps.viewIds(pkg)
+        if (ids.isEmpty()) {
+            return
+        }
         val now = SystemClock.uptimeMillis()
 
         when (target.eventType) {
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 val root = target.source ?: rootInActiveWindow
-                observeVisibility(pkg, ids, root, now)
+                observeVisibility(ids, root, now)
                 maybeBlock(pkg)
             }
 
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 val root = target.source ?: rootInActiveWindow
-                observeVisibility(pkg, ids, root, now)
+                observeVisibility(ids, root, now)
 
                 val viewId = visibleReelViewId
-                if (viewId != null && isDwellSatisfied(now)) {
+                if (viewId != null && ReelDetector.isDwellSatisfied(visibleSince, now)) {
                     maybeCount(pkg, viewId, now)
                 }
 
@@ -129,11 +129,14 @@ class ReelCountAccessibilityService : AccessibilityService() {
         visibleSince = 0L
         foregroundPackage = null
         lastCountAt.clear()
+        // Both windows belong to a service that is going away: a pill left
+        // behind is cosmetic, a full-screen blocker left behind traps the user.
         runCatching { OverlayManager.get(applicationContext).hidePill() }
+        runCatching { OverlayManager.get(applicationContext).hideBlocker() }
         scope.cancel()
     }
 
-    private fun observeVisibility(pkg: String, ids: List<String>, root: AccessibilityNodeInfo?, now: Long) {
+    private fun observeVisibility(ids: List<String>, root: AccessibilityNodeInfo?, now: Long) {
         val node = findReelNode(root ?: rootInActiveWindow, ids)
         val viewId = node?.viewIdResourceName
 
@@ -149,13 +152,9 @@ class ReelCountAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Rule 4: a reel must have been on screen for two seconds to count. */
-    private fun isDwellSatisfied(now: Long): Boolean = visibleSince > 0L && now - visibleSince >= MIN_VISIBLE_MS
-
     private fun maybeCount(pkg: String, viewId: String, now: Long) {
-        // Rule 3: the same view id cannot increment twice within one second.
         val previous = lastCountAt[viewId] ?: 0L
-        if (now - previous < DEBOUNCE_MS) {
+        if (!ReelDetector.isDebounceSatisfied(previous, now)) {
             return
         }
         lastCountAt[viewId] = now
@@ -168,7 +167,7 @@ class ReelCountAccessibilityService : AccessibilityService() {
                 val row = CountRepository.get(applicationContext).increment(pkg)
                 val perApp = PerAppCounts.parse(row.perAppJson)
 
-                ReelCountEvents.reelCounted(applicationContext, pkg, row.total, perApp)
+                ReelCountEvents.reelCounted(pkg, row.total, perApp)
                 ReelCountForegroundService.updateCount(applicationContext, row.total)
                 OverlayManager.get(applicationContext).onReelCounted(row.total, perApp)
                 ReelBlocker.get(applicationContext).onReelCounted(pkg, row.total)
@@ -213,52 +212,23 @@ class ReelCountAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /** Rules 1, 2 and 5 in one place. */
     private fun isTrackedReelNode(node: AccessibilityNodeInfo, ids: List<String>): Boolean {
-        val rawId = node.viewIdResourceName ?: return false
-        val shortId = rawId.substringAfter(":id/", "")
-        if (shortId.isEmpty()) {
+        val shortId = ReelDetector.shortViewId(node.viewIdResourceName) ?: return false
+        if (!ReelDetector.isReelContainerId(shortId, ids)) {
             return false
         }
 
-        // Rule 5: Stories use "reel_viewer_" ids and are never counted.
-        if (shortId.startsWith(STORIES_PREFIX)) {
-            return false
-        }
-
-        val isReelContainer =
-            ids.contains(shortId) || shortId.startsWith(REEL_PLAYER_PREFIX)
-        if (!isReelContainer) {
-            return false
-        }
-
-        // Rule 1: zero-sized nodes are not real.
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
-        if (bounds.width() <= 0 || bounds.height() <= 0) {
-            return false
-        }
-
-        // Rule 2: the node must actually be visible.
-        if (!node.isVisibleToUser) {
-            return false
-        }
-
-        return true
+        return ReelDetector.isRealNode(
+            width = bounds.width(),
+            height = bounds.height(),
+            visibleToUser = node.isVisibleToUser
+        )
     }
 
     private companion object {
         const val TAG = "ReelCountA11y"
-
-        /** Rule 4. */
-        const val MIN_VISIBLE_MS = 2_000L
-
-        /** Rule 3. */
-        const val DEBOUNCE_MS = 1_000L
-
         const val MAX_TREE_DEPTH = 40
-
-        const val STORIES_PREFIX = "reel_viewer_"
-        const val REEL_PLAYER_PREFIX = "reel_player_"
     }
 }

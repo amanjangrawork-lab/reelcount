@@ -10,7 +10,6 @@ import com.facebook.react.bridge.WritableMap
 import com.reelcount.data.CountRepository
 import com.reelcount.data.ReelCountSettings
 import com.reelcount.data.SettingsRepository
-import com.reelcount.ui.ReelBlocker
 import com.reelcount.util.AccessibilityUtils
 import com.reelcount.util.PerAppCounts
 import com.reelcount.util.TimeUtils
@@ -20,7 +19,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * JavaScript bridge. Exposed as `NativeModules.ReelCount` and reached through
@@ -148,11 +146,6 @@ class ReelCountModule(private val reactContext: ReactApplicationContext) :
     // ------------------------------------------------------------- settings
 
     @ReactMethod
-    fun getLimit(promise: Promise) {
-        promise.resolve(settingsRepo.current().limit)
-    }
-
-    @ReactMethod
     fun setLimit(limit: Double, promise: Promise) {
         try {
             settingsRepo.updateLimit(limit.toInt())
@@ -203,47 +196,11 @@ class ReelCountModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun dismissBlockForFiveMinutes(promise: Promise) {
-        try {
-            ReelBlocker.get(reactContext).dismissForFiveMinutes()
-            promise.resolve(null)
-        } catch (error: Exception) {
-            promise.reject(ERROR_SETTINGS, error.message, error)
-        }
-    }
-
-    @ReactMethod
     fun getSettings(promise: Promise) {
         try {
             promise.resolve(settingsToMap(settingsRepo.current()))
         } catch (error: Exception) {
             promise.reject(ERROR_SETTINGS, error.message, error)
-        }
-    }
-
-    /** Full settings snapshot straight from Room, for the debug/README path. */
-    @ReactMethod
-    fun getSettingsFromDatabase(promise: Promise) {
-        scope.launch {
-            try {
-                val stored = withContext(Dispatchers.IO) {
-                    com.reelcount.db.ReelCountDatabase.get(reactContext).settingsDao().get()
-                }
-                val snapshot = if (stored == null) {
-                    settingsRepo.current()
-                } else {
-                    ReelCountSettings(
-                        limit = ReelCountSettings.coerceLimit(stored.limit),
-                        blockEnabled = stored.blockEnabled,
-                        overlayEnabled = stored.overlayEnabled,
-                        allDayLockUntil = stored.allDayLockUntil,
-                        perAppEnabled = PerAppCounts.parseToggles(stored.perAppTogglesJson)
-                    )
-                }
-                promise.resolve(settingsToMap(snapshot))
-            } catch (error: Exception) {
-                promise.reject(ERROR_DB, error.message, error)
-            }
         }
     }
 
@@ -277,11 +234,6 @@ class ReelCountModule(private val reactContext: ReactApplicationContext) :
         } catch (error: Exception) {
             promise.reject(ERROR_PERMISSION, error.message, error)
         }
-    }
-
-    @ReactMethod
-    fun openOverlaySettings(promise: Promise) {
-        requestOverlayPermission(promise)
     }
 
     // ---------------------------------------------------------------- events

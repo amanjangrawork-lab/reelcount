@@ -1,0 +1,2 @@
+# Room writes the exported schema (1.json) here on the first build.
+# Commit it: future migrations are written and reviewed against these files.
