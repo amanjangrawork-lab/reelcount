@@ -6,6 +6,10 @@
       ReelCount deliberately declares NO INTERNET permission and no
       ACCESS_NETWORK_STATE, AD_ID or analytics permissions. The release
       artifact is fully offline.
+
+      Cleartext HTTP is off in release builds because that is the platform
+      default from targetSdk 28 on; only src/debug/AndroidManifest.xml re-enables
+      it, because Metro is served over plain HTTP in development.
     -->
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -22,7 +26,6 @@
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="false"
         tools:targetApi="34">
 
         <activity
