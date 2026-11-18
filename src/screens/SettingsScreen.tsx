@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View} from 'react-native';
 import Slider from '@react-native-community/slider';
 import {useFocusEffect} from '@react-navigation/native';
@@ -49,10 +49,6 @@ export default function SettingsScreen() {
       void load();
     }, [load]),
   );
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const applyLimit = useCallback(async (value: number) => {
     const clamped = clampLimit(value);
@@ -234,7 +230,7 @@ export default function SettingsScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Text style={styles.version}>ReelCount 0.1.0 · GPL-3.0 · no network access</Text>
+      <Text style={styles.version}>ReelCount 0.1.1 · GPL-3.0 · no network access</Text>
     </ScrollView>
   );
 }

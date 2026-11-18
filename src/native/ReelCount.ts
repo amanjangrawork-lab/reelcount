@@ -46,20 +46,16 @@ interface ReelCountNative {
   getPerAppCounts(): Promise<PerAppCounts>;
   getDailyTotals(days: number): Promise<DailyTotal[]>;
   getRangeSummary(days: number): Promise<RangeSummary>;
-  getLimit(): Promise<number>;
   setLimit(limit: number): Promise<void>;
   setBlockEnabled(enabled: boolean): Promise<void>;
   setOverlayEnabled(enabled: boolean): Promise<void>;
   setPerAppEnabled(pkg: string, enabled: boolean): Promise<void>;
   setAllDayLockUntil(epochMillis: number): Promise<void>;
-  dismissBlockForFiveMinutes(): Promise<void>;
   getSettings(): Promise<ReelCountSettings>;
-  getSettingsFromDatabase(): Promise<ReelCountSettings>;
   isAccessibilityServiceEnabled(): Promise<boolean>;
   openAccessibilitySettings(): Promise<void>;
   isOverlayPermissionGranted(): Promise<boolean>;
   requestOverlayPermission(): Promise<void>;
-  openOverlaySettings(): Promise<void>;
 }
 
 /**
@@ -83,8 +79,6 @@ function requireModule(): ReelCountNative {
   return resolved;
 }
 
-export const isNativeModuleAvailable = (): boolean => resolved !== null;
-
 function subscribe<T>(eventName: string, handler: (event: T) => void): () => void {
   const subscription = DeviceEventEmitter.addListener(eventName, handler);
   return () => subscription.remove();
@@ -95,20 +89,16 @@ export const ReelCount = {
   getPerAppCounts: (): Promise<PerAppCounts> => requireModule().getPerAppCounts(),
   getDailyTotals: (days: number): Promise<DailyTotal[]> => requireModule().getDailyTotals(days),
   getRangeSummary: (days: number): Promise<RangeSummary> => requireModule().getRangeSummary(days),
-  getLimit: (): Promise<number> => requireModule().getLimit(),
   setLimit: (limit: number): Promise<void> => requireModule().setLimit(limit),
   setBlockEnabled: (enabled: boolean): Promise<void> => requireModule().setBlockEnabled(enabled),
   setOverlayEnabled: (enabled: boolean): Promise<void> => requireModule().setOverlayEnabled(enabled),
   setPerAppEnabled: (pkg: string, enabled: boolean): Promise<void> => requireModule().setPerAppEnabled(pkg, enabled),
   setAllDayLockUntil: (epochMillis: number): Promise<void> => requireModule().setAllDayLockUntil(epochMillis),
-  dismissBlockForFiveMinutes: (): Promise<void> => requireModule().dismissBlockForFiveMinutes(),
   getSettings: (): Promise<ReelCountSettings> => requireModule().getSettings(),
-  getSettingsFromDatabase: (): Promise<ReelCountSettings> => requireModule().getSettingsFromDatabase(),
   isAccessibilityServiceEnabled: (): Promise<boolean> => requireModule().isAccessibilityServiceEnabled(),
   openAccessibilitySettings: (): Promise<void> => requireModule().openAccessibilitySettings(),
   isOverlayPermissionGranted: (): Promise<boolean> => requireModule().isOverlayPermissionGranted(),
   requestOverlayPermission: (): Promise<void> => requireModule().requestOverlayPermission(),
-  openOverlaySettings: (): Promise<void> => requireModule().openOverlaySettings(),
 };
 
 export const ReelCountEventNames = {
@@ -126,6 +116,11 @@ export const onLimitReached = (handler: (event: LimitReachedEvent) => void): (()
 export const onBlockStateChanged = (handler: (event: BlockStateEvent) => void): (() => void) =>
   subscribe<BlockStateEvent>(ReelCountEventNames.blockStateChanged, handler);
 
+/**
+ * UI mirror of the tracked apps. The native source of truth for packages,
+ * labels and view ids is `android/.../util/TrackedApps.kt`; keep the two lists
+ * in step when adding an app.
+ */
 export const TRACKED_APPS = [
   {pkg: 'com.instagram.android', name: 'Instagram'},
   {pkg: 'com.google.android.youtube', name: 'YouTube'},

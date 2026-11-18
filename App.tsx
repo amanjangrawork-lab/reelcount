@@ -56,10 +56,6 @@ export default function App() {
     }
   }, []);
 
-  const onDecline = useCallback(() => {
-    setStage('consent');
-  }, []);
-
   const onFinishOnboarding = useCallback(async () => {
     try {
       await finishOnboarding();
@@ -92,10 +88,6 @@ export default function App() {
 
             <TouchableOpacity style={styles.primaryButton} onPress={() => void onAccept()}>
               <Text style={styles.primaryButtonText}>I understand, continue</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.ghostButton} onPress={onDecline}>
-              <Text style={styles.ghostButtonText}>Not now</Text>
             </TouchableOpacity>
           </ScrollView>
         ) : null}
@@ -166,17 +158,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.onAccent,
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
-  },
-  ghostButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  ghostButtonText: {
-    color: colors.muted,
-    fontSize: 14,
   },
 });

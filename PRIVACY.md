@@ -21,9 +21,10 @@ app's private storage):
 - `daily_counts`: one row per day with the total and a per-app count.
 - `settings`: your limit, toggles and any all-day lock.
 
-Settings are additionally mirrored into `EncryptedSharedPreferences` so the
-accessibility service can read them without touching the disk on every scroll
-event.
+Settings are additionally cached in plain `SharedPreferences` inside the app's
+private storage, so the accessibility service can read them without touching the
+database on every scroll event. That cache holds limits and toggles, not
+personal content, and it is not encrypted — the app makes no claim that it is.
 
 ## What leaves the device
 

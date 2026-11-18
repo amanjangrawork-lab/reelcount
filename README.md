@@ -11,14 +11,6 @@ No internet permission. No analytics. No ads. GPL-3.0.
 Short-form video is designed to be uncountable. ReelCount makes the number
 visible, on your own device, and gives you a way to stop when you said you would.
 
-## Screenshots
-
-| Dashboard | Stats | Settings | Floating pill |
-| --- | --- | --- | --- |
-| _placeholder_ | _placeholder_ | _placeholder_ | _placeholder_ |
-
-Screenshots live in `docs/screenshots/` once captured on a device.
-
 ## Features
 
 - Live counter for today's Reels/Shorts with a brain-state colour
@@ -43,6 +35,7 @@ Screenshots live in `docs/screenshots/` once captured on a device.
 ```bash
 npm install
 npm run tsc          # TypeScript check
+cd android && ./gradlew testDebugUnitTest   # JVM unit tests
 cd android && ./gradlew assembleDebug
 ```
 
@@ -59,6 +52,19 @@ Release build (signed with the debug key — replace before distributing):
 ```bash
 cd android && ./gradlew assembleRelease
 ```
+
+CI builds both variants, so the release-only R8/ProGuard path is exercised on
+every push, and it runs the unit tests before either APK.
+
+## Tests
+
+```bash
+cd android && ./gradlew testDebugUnitTest
+```
+
+Covers the six detection rules (`detect/ReelDetector.kt`), limit clamping and the
+lock window, the per-app JSON encoding, and the epoch-day helper. Everything runs
+on the JVM: no device, emulator or Android SDK image of a specific app needed.
 
 ### Gradle wrapper
 
@@ -103,7 +109,8 @@ applies six rules before anything is counted:
 6. Events are ignored unless the tracked app is the foreground app.
 
 Only view ids and visibility are read — never text, so passwords, messages and
-post content are never captured.
+post content are never captured. Each rule lives in `detect/ReelDetector.kt` and
+has a unit test.
 
 ## Where settings are stored
 
@@ -111,11 +118,12 @@ Room is the authoritative store: `daily_counts` and a single-row `settings`
 table in `reelcount.db`, on the device only.
 
 Because the accessibility service must read settings synchronously on every
-scroll event, `SettingsRepository` keeps an `EncryptedSharedPreferences`
-(`androidx.security:security-crypto`) mirror that is loaded once, cached in
-memory, and updated by the same single write path as the Room row. If the
-Android keystore is unavailable on a device, the mirror falls back to private
-preferences and Room remains authoritative.
+scroll event, `SettingsRepository` keeps one in-memory snapshot plus a small
+app-private `SharedPreferences` cache (`reelcount_settings`). The cache is not
+encrypted, and does not need to be: limits and toggles are not secrets, and the
+file sits inside the app's private storage. Writes update the snapshot and the
+cache immediately and mirror to Room asynchronously; startup reloads the
+snapshot from Room, which stays authoritative.
 
 ## Project layout
 
@@ -127,10 +135,12 @@ src/components/Charts.tsx     SVG bar, line and donut charts
 android/app/src/main/java/com/reelcount/
   MainActivity.kt, MainApplication.kt, ReelCountModule.kt, ReelCountPackage.kt
   service/                    accessibility, foreground service, boot receiver
+  detect/ReelDetector.kt      the six rules as pure functions
   ui/                         OverlayManager, ReelBlocker
   db/                         Room entities, DAOs, database
   data/                       repositories
-  util/                       tracked apps, JSON helpers, time helpers
+  util/                       tracked apps, JSON helpers, time helper
+android/app/src/test/         JVM unit tests for the rules and the helpers
 ```
 
 ## Known limitations
@@ -138,8 +148,8 @@ android/app/src/main/java/com/reelcount/
 - **App UI updates break detection.** Instagram, YouTube, Facebook and Snapchat
   can rename or restructure their view ids at any time. When that happens the
   count silently stops for that app until the ids in
-  `ReelCountAccessibilityService.viewIdsByPackage` (and `CONTRIBUTING.md`) are
-  updated. ReelCount cannot detect anything it has no ids for.
+  `util/TrackedApps.VIEW_IDS` (and `CONTRIBUTING.md`) are updated. ReelCount
+  cannot detect anything it has no ids for.
 - Counting is heuristic: a reel is counted when a recognised container is
   visible for 2 seconds and the view scrolls. Videos watched without a scroll
   event may be undercounted.
@@ -148,9 +158,11 @@ android/app/src/main/java/com/reelcount/
   removal requires switching the service off in Android settings.
 - Reels opened from the Instagram/Facebook in-app browser surfaces, or via
   Android's system share sheet previews, may not be recognised.
-- Tested against the view ids current at v0.1.0 (2026). No device automation is
-  possible in CI, so the accessibility heuristics are not covered by automated
-  tests.
+- Tested against the view ids current at v0.1.1 (2026). The six
+  anti-false-positive rules are covered by JVM unit tests, but the window tree
+  itself can only be exercised on a real device: no device automation runs in CI.
+- No screenshots yet. The UI has not been captured on a device, and the README
+  no longer pretends otherwise.
 - The Gradle release build is signed with the debug key. Anyone shipping this
   needs their own signing config.
 

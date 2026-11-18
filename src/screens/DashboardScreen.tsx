@@ -9,6 +9,7 @@ export default function DashboardScreen() {
   const [perApp, setPerApp] = useState<PerAppCounts>({});
   const [limit, setLimit] = useState(100);
   const [accessibilityOn, setAccessibilityOn] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [limitHit, setLimitHit] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [display, setDisplay] = useState(0);
@@ -45,8 +46,11 @@ export default function DashboardScreen() {
       setLimit(settings.limit);
       setAccessibilityOn(enabled);
       setLimitHit(settings.blockEnabled && todayTotal >= settings.limit);
-    } catch {
-      setAccessibilityOn(false);
+      setLoadError(null);
+    } catch (nativeError) {
+      // A database or bridge failure is not a permission problem: say what
+      // actually went wrong instead of blaming the accessibility service.
+      setLoadError(nativeError instanceof Error ? nativeError.message : 'Could not read the counter.');
     }
   }, []);
 
@@ -90,7 +94,13 @@ export default function DashboardScreen() {
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-      {!accessibilityOn ? (
+      {loadError ? (
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>{loadError}</Text>
+        </View>
+      ) : null}
+
+      {!loadError && !accessibilityOn ? (
         <View style={styles.warning}>
           <Text style={styles.warningText}>
             Accessibility Service is off, so nothing is being counted right now. Open the app's setup screen to turn it
@@ -142,13 +152,13 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
   warning: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningBackground,
     borderRadius: 12,
     marginBottom: spacing.md,
     padding: spacing.md,
   },
   warningText: {
-    color: '#92400E',
+    color: colors.warningText,
     fontSize: 13,
     lineHeight: 19,
   },

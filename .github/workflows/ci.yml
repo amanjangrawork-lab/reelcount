@@ -42,7 +42,7 @@ jobs:
           ./ktlint "android/app/src/**/*.kt"
 
   android:
-    name: Debug APK
+    name: Unit tests and APKs
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -77,12 +77,35 @@ jobs:
       - name: Ensure Gradle wrapper
         run: cd android && gradle wrapper --gradle-version 8.6
 
+      - name: Unit tests
+        run: cd android && ./gradlew testDebugUnitTest --no-daemon
+
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon
 
-      - name: Upload debug APK
+      # The release build is the only path that runs R8 with the project's
+      # ProGuard rules, so CI has to build it or those rules stay unverified.
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: Upload test report
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: reelcount-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: unit-test-report
+          path: android/app/build/reports/tests/**
+          if-no-files-found: ignore
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: reelcount-apks
+          path: android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      - name: Upload Room schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas
+          path: android/app/schemas/**
+          if-no-files-found: ignore

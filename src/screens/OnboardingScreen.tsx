@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
   },
   secondaryButtonGranted: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.successSoft,
   },
   secondaryButtonText: {
     color: colors.text,
@@ -184,18 +184,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   privacyBox: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: colors.successBackground,
     borderRadius: 14,
     marginTop: spacing.sm,
     padding: spacing.md,
   },
   privacyTitle: {
-    color: '#065F46',
+    color: colors.successText,
     fontSize: 15,
     fontWeight: '700',
   },
   privacyBody: {
-    color: '#065F46',
+    color: colors.successText,
     fontSize: 13,
     lineHeight: 19,
     marginTop: spacing.xs,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.onAccent,
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',

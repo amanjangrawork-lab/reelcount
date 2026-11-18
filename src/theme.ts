@@ -8,6 +8,12 @@ export const colors = {
   chart: '#0EA5E9',
   underlay: '#F1F5F9',
   danger: '#EF4444',
+  onAccent: '#FFFFFF',
+  warningBackground: '#FEF3C7',
+  warningText: '#92400E',
+  successBackground: '#ECFDF5',
+  successText: '#065F46',
+  successSoft: '#DCFCE7',
 };
 
 export const spacing = {

@@ -1,12 +1,13 @@
 {
   "name": "reelcount",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "GPL-3.0-only",
   "scripts": {
     "android": "react-native run-android",
     "start": "react-native start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "test": "cd android && ./gradlew testDebugUnitTest",
     "tsc": "tsc --noEmit",
     "build:android": "cd android && ./gradlew assembleDebug",
     "ktlint": "ktlint \"android/app/src/**/*.kt\""
