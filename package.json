@@ -9,7 +9,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "tsc": "tsc --noEmit",
     "build:android": "cd android && ./gradlew assembleDebug",
-    "ktlint": "ktlint --android \"android/app/src/**/*.kt\""
+    "ktlint": "ktlint \"android/app/src/**/*.kt\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",

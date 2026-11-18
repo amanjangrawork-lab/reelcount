@@ -3,7 +3,8 @@ package com.reelcount.data
 import com.reelcount.util.TrackedApps
 
 /**
- * Immutable settings snapshot with limit coercion.
+ * Immutable snapshot of the user's settings. Reads are served from an
+ * in-memory copy so that `onAccessibilityEvent` never touches disk.
  */
 data class ReelCountSettings(
     val limit: Int = DEFAULT_LIMIT,
